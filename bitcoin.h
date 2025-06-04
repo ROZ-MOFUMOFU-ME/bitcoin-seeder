@@ -3,6 +3,6 @@
 
 #include "protocol.h"
 
-bool TestNode(const CService &cip, int &ban, int &client, std::string &clientSV, int &blocks, std::vector<CAddress>* vAddr, uint64_t& services);
+bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV, int &blocks, std::vector<CAddress>* vAddr, uint64_t &services);
 
 #endif

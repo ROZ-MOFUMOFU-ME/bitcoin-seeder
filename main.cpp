@@ -1,19 +1,20 @@
 #include <algorithm>
-
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
+#include <atomic>     // std::atomicのため
+#include <cinttypes>  // PRId64、PRIx64のため
+#include <cstdio>
+#include <cstdlib>
+#include <getopt.h>   // getopt_long()のため
+#include <signal.h>   // SIGPIPE、SIG_IGN、signal()のため
 #include <pthread.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <getopt.h>
-#include <atomic>
+#include <unistd.h>   // Sleep関数のため
 
-#include "bitcoin.h"
 #include "db.h"
+#include "bitcoin.h"  // TestNode関数の宣言のため
 
 using namespace std;
 
+// コメントアウトして、db.cppの定義を使用
+// int nMinimumHeight = 4600000; // クマコインの現在のブロック高さに近い値
 bool fTestNet = false;
 
 class CDnsSeedOpts {
@@ -465,12 +466,8 @@ extern "C" void* ThreadStats(void*) {
   return nullptr;
 }
 
-static const string mainnet_seeds[] = {"dnsseed.bluematt.me", "bitseed.xf2.org", "dnsseed.bitcoin.dashjr.org", "seed.bitcoin.sipa.be", "kjy2eqzk4zwi5zd3.onion", ""};
-static const string testnet_seeds[] = {"testnet-seed.alexykot.me",
-                                       "testnet-seed.bitcoin.petertodd.org",
-                                       "testnet-seed.bluematt.me",
-                                       "testnet-seed.bitcoin.schildbach.de",
-                                       ""};
+static const string mainnet_seeds[] = {"kumaseed.tamami-foundation.org", "96.9.229.140", "167.253.159.232", ""};
+static const string testnet_seeds[] = {""};
 static const string *seeds = mainnet_seeds;
 static vector<string> vSeeds;
 

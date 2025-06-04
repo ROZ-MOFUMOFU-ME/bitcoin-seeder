@@ -6,3 +6,6 @@ dnsseed: dns.o bitcoin.o netbase.o protocol.o db.o main.o util.o
 
 %.o: %.cpp *.h
 	g++ -std=c++11 -pthread $(CXXFLAGS) -Wall -Wno-unused -Wno-sign-compare -Wno-reorder -Wno-comment -c -o $@ $<
+
+testnode: testnode.o bitcoin.o db.o netbase.o protocol.o util.o testdefs.o
+	$(CXX) -pthread $(LDFLAGS) -o $@ $^ -lcrypto

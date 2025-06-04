@@ -26,9 +26,9 @@ class CNode {
 
   int GetTimeout() {
       if (you.IsTor())
-          return 120;
+          return 360;
       else
-          return 30;
+          return 90;
   }
 
   void BeginMessage(const char *pszCommand) {
@@ -36,7 +36,7 @@ class CNode {
     nHeaderStart = vSend.size();
     vSend << CMessageHeader(pszCommand, 0);
     nMessageStart = vSend.size();
-//    printf("%s: SEND %s\n", ToString(you).c_str(), pszCommand); 
+    printf("%s: SEND %s\n", ToString(you).c_str(), pszCommand); 
   }
   
   void AbortMessage() {
@@ -76,18 +76,25 @@ class CNode {
   void PushVersion() {
     int64 nTime = time(NULL);
     uint64 nLocalNonce = BITCOIN_SEED_NONCE;
-    int64 nLocalServices = 0;
+    int64 nLocalServices = 1;
     CAddress me(CService("0.0.0.0"));
     BeginMessage("version");
     int nBestHeight = GetRequireHeight();
-    string ver = "/bitcoin-seeder:0.01/";
-    uint8_t fRelayTxs = 0;
-    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight << fRelayTxs;
+    string ver = "/Antenna:0.8.9.9/"; // クマコインと同じサブバージョン
+    
+    printf("Sending version: %i, services: %llu, nonce: %llu\n", 
+           PROTOCOL_VERSION, (unsigned long long)nLocalServices, (unsigned long long)nLocalNonce);
+    
+    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight;
+    
+    // クマコインプロトコル60007で必要
+    vSend << (uint8_t)1; // fRelayTxsフラグ
+    
     EndMessage();
   }
  
   void GotVersion() {
-    // printf("\n%s: version %i\n", ToString(you).c_str(), nVersion);
+    printf("\n%s: version %i\n", ToString(you).c_str(), nVersion);
     if (vAddr) {
       BeginMessage("getaddr");
       EndMessage();
@@ -98,7 +105,18 @@ class CNode {
   }
 
   bool ProcessMessage(string strCommand, CDataStream& vRecv) {
-//    printf("%s: RECV %s\n", ToString(you).c_str(), strCommand.c_str());
+    printf("%s: RECV %s (size: %d bytes)\n",
+           ToString(you).c_str(), strCommand.c_str(), (int)vRecv.size());
+    // --- ここを追加 ---
+    if (strCommand == "inv") {
+        printf("%s: INV received, treating as success\n", ToString(you).c_str());
+        // クマコインノードは version/verack を返さず inv しか返さないので
+        // inv が来た時点でテスト成功とみなす
+        return true;
+    }
+    // --- 追加ここまで ---
+
+    // 既存の version/verack/addr 処理...
     if (strCommand == "version") {
       int64 nTime;
       CAddress addrMe;
@@ -134,7 +152,7 @@ class CNode {
     if (strCommand == "addr" && vAddr) {
       vector<CAddress> vAddrNew;
       vRecv >> vAddrNew;
-      // printf("%s: got %i addresses\n", ToString(you).c_str(), (int)vAddrNew.size());
+      printf("%s: got %i addresses\n", ToString(you).c_str(), (int)vAddrNew.size());
       int64 now = time(NULL);
       vector<CAddress>::iterator it = vAddrNew.begin();
       if (vAddrNew.size() > 1) {
@@ -142,13 +160,13 @@ class CNode {
       }
       while (it != vAddrNew.end()) {
         CAddress &addr = *it;
-//        printf("%s: got address %s\n", ToString(you).c_str(), addr.ToString().c_str(), (int)(vAddr->size()));
+        printf("%s: got address %s (total: %d)\n", ToString(you).c_str(), addr.ToString().c_str(), (int)(vAddr->size()));
         it++;
         if (addr.nTime <= 100000000 || addr.nTime > now + 600)
           addr.nTime = now - 5 * 86400;
         if (addr.nTime > now - 604800)
           vAddr->push_back(addr);
-//        printf("%s: added address %s (#%i)\n", ToString(you).c_str(), addr.ToString().c_str(), (int)(vAddr->size()));
+        printf("%s: added address %s (#%i)\n", ToString(you).c_str(), addr.ToString().c_str(), (int)(vAddr->size()));
         if (vAddr->size() > 1000) {doneAfter = 1; return true; }
       }
       return false;
@@ -173,13 +191,13 @@ class CNode {
       CMessageHeader hdr;
       vRecv >> hdr;
       if (!hdr.IsValid()) { 
-        // printf("%s: BAD (invalid header)\n", ToString(you).c_str());
+        printf("%s: BAD (invalid header)\n", ToString(you).c_str());
         ban = 100000; return true;
       }
       string strCommand = hdr.GetCommand();
       unsigned int nMessageSize = hdr.nMessageSize;
       if (nMessageSize > MAX_SIZE) { 
-        // printf("%s: BAD (message too large)\n", ToString(you).c_str());
+        printf("%s: BAD (message too large)\n", ToString(you).c_str());
         ban = 100000;
         return true; 
       }
@@ -197,7 +215,7 @@ class CNode {
       vRecv.ignore(nMessageSize);
       if (ProcessMessage(strCommand, vMsg))
         return true;
-//      printf("%s: done processing %s\n", ToString(you).c_str(), strCommand.c_str());
+      printf("%s: done processing %s\n", ToString(you).c_str(), strCommand.c_str());
     } while(1);
     return false;
   }
@@ -214,52 +232,63 @@ public:
     }
   }
   bool Run() {
-    bool res = true;
-    if (!ConnectSocket(you, sock)) return false;
-    PushVersion();
-    Send();
-    int64 now;
-    while (now = time(NULL), ban == 0 && (doneAfter == 0 || doneAfter > now) && sock != INVALID_SOCKET) {
-      char pchBuf[0x10000];
-      fd_set read_set, except_set;
-      FD_ZERO(&read_set);
-      FD_ZERO(&except_set);
-      FD_SET(sock,&read_set);
-      FD_SET(sock,&except_set);
-      struct timeval wa;
-      if (doneAfter) {
-        wa.tv_sec = doneAfter - now;
-        wa.tv_usec = 0;
-      } else {
-        wa.tv_sec = GetTimeout();
-        wa.tv_usec = 0;
-      }
-      int ret = select(sock+1, &read_set, NULL, &except_set, &wa);
-      if (ret != 1) {
-        if (!doneAfter) res = false;
-        break;
-      }
-      int nBytes = recv(sock, pchBuf, sizeof(pchBuf), 0);
-      int nPos = vRecv.size();
-      if (nBytes > 0) {
-        vRecv.resize(nPos + nBytes);
-        memcpy(&vRecv[nPos], pchBuf, nBytes);
-      } else if (nBytes == 0) {
-        // printf("%s: BAD (connection closed prematurely)\n", ToString(you).c_str());
-        res = false;
-        break;
-      } else {
-        // printf("%s: BAD (connection error)\n", ToString(you).c_str());
-        res = false;
-        break;
-      }
-      ProcessMessages();
-      Send();
-    }
-    if (sock == INVALID_SOCKET) res = false;
-    close(sock);
-    sock = INVALID_SOCKET;
-    return (ban == 0) && res;
+     bool res = true;
+     if (!ConnectSocket(you, sock)) return false;
+     PushVersion();
+     Send();
+     int64 now;
+    while ((now = time(NULL)), ban == 0 && (doneAfter == 0 || doneAfter > now) && sock != INVALID_SOCKET) {
+        char pchBuf[0x10000];
+        fd_set read_set, except_set;
+        FD_ZERO(&read_set);
+        FD_ZERO(&except_set);
+        FD_SET(sock,&read_set);
+        FD_SET(sock,&except_set);
+        struct timeval wa;
+        if (doneAfter) {
+          wa.tv_sec = doneAfter - now;
+          wa.tv_usec = 0;
+        } else {
+          wa.tv_sec = GetTimeout();
+          wa.tv_usec = 0;
+        }
+        int ret = select(sock+1, &read_set, NULL, &except_set, &wa);
+        if (ret != 1) {
+          if (!doneAfter) res = false;
+          break;
+        }
+
+        // ← ここで nPos を定義
+        unsigned int nPos = vRecv.size();
+
+        int nBytes = recv(sock, pchBuf, sizeof(pchBuf), 0);
+         if (nBytes > 0) {
+            vRecv.resize(nPos + nBytes);
+            memcpy(&vRecv[nPos], pchBuf, nBytes);
+         } else if (nBytes == 0) {
+           printf("%s: BAD (connection closed prematurely)\n", ToString(you).c_str());
+           res = false;
+           break;
+         } else {
+           printf("%s: BAD (connection error)\n", ToString(you).c_str());
+           res = false;
+           break;
+         }
+         // 戻り値 true＝ProcessMessage 内で「INV 受信」など成功判定が出た
+         bool fDone = ProcessMessages();
+         Send();
+         if (fDone) {
+            res = true;  // 成功
+            break;
+         }
+     }
+     if (sock == INVALID_SOCKET) {
+       printf("%s: Socket became invalid\n", ToString(you).c_str());
+       res = false;
+     }
+     close(sock);
+     sock = INVALID_SOCKET;
+     return (ban == 0) && res;
   }
   
   int GetBan() {
@@ -283,25 +312,26 @@ public:
   }
 };
 
-bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV, int &blocks, vector<CAddress>* vAddr, uint64_t& services) {
-  try {
-    CNode node(cip, vAddr);
-    bool ret = node.Run();
-    if (!ret) {
-      ban = node.GetBan();
-    } else {
-      ban = 0;
+bool TestNode(const CService& cip, int& ban, int& clientV, std::string& clientSV, int& blocks, std::vector<CAddress>* vAddr, uint64_t& services)
+{
+    try {
+        CNode node(cip, vAddr);
+        bool ret = node.Run();
+        if (!ret) {
+            ban = node.GetBan();
+        } else {
+            ban = 0;
+        }
+        clientV = node.GetClientVersion();
+        clientSV = node.GetClientSubVersion();
+        blocks = node.GetStartingHeight();
+        services = node.GetServices();
+        printf("%s: %s!!!\n", cip.ToString().c_str(), ret ? "GOOD" : "BAD");
+        return ret;
+    } catch(std::ios_base::failure& e) {
+        ban = 0;
+        return false;
     }
-    clientV = node.GetClientVersion();
-    clientSV = node.GetClientSubVersion();
-    blocks = node.GetStartingHeight();
-    services = node.GetServices();
-//  printf("%s: %s!!!\n", cip.ToString().c_str(), ret ? "GOOD" : "BAD");
-    return ret;
-  } catch(std::ios_base::failure& e) {
-    ban = 0;
-    return false;
-  }
 }
 
 /*
