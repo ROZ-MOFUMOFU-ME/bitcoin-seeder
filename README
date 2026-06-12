@@ -38,6 +38,39 @@ On the system vps.example.com, you can now run dnsseed:
 If you want the DNS server to report SOA records, please provide an
 e-mail address (with the @ part replaced by .) using -m.
 
+SEEDING OTHER NETWORKS
+----------------------
+
+For altcoins, set the network parameters on the command line instead of
+editing the source:
+
+  --p2port <port>   P2P port of the network
+  --magic <hex>     message start / network magic bytes (8 hex chars)
+  --minheight <n>   minimum block height for a node to be reported as good
+  --minversion <n>  minimum protocol version for a node to be reported as
+                    good (default 70001 - lower this for old wallets)
+  --protover <n>    protocol version the crawler advertises in its version
+                    message (default 60000 - networks whose minimum peer
+                    protocol version is higher disconnect the crawler with
+                    "using obsolete version"; set this to the network's
+                    current protocol version)
+  --initversion <n> initial stream version used before version negotiation
+                    (default 209). Peercoin-derived wallets initialize
+                    their streams at MIN_PROTO_VERSION, which adds the
+                    nTime field to the addresses inside the version
+                    message itself; without this their side fails with
+                    "CDataStream::read() : end of data". Set it to the
+                    same value as --protover for such networks.
+  -s <seed>         initial node(s) to crawl from, replaces the bitcoin
+                    DNS seeds
+
+Example for an old peercoin-derived wallet (protocol version 60007,
+e.g. KumaCoin):
+
+./dnsseed -h kuma.seed.example.com -n ns1.kuma.example.com -m admin.example.com \
+    --p2port 7586 --magic c3d4d2fe --minheight 1000000 \
+    --minversion 60007 --protover 60007 --initversion 60007 -s <known-node-ip>
+
 COMPILING
 ---------
 

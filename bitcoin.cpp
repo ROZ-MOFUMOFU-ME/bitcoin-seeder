@@ -81,15 +81,15 @@ class CNode {
     BeginMessage("version");
     int nBestHeight = GetRequireHeight();
     string ver = "/Antenna:0.8.9.9/"; // クマコインと同じサブバージョン
-    
-    printf("Sending version: %i, services: %llu, nonce: %llu\n", 
-           PROTOCOL_VERSION, (unsigned long long)nLocalServices, (unsigned long long)nLocalNonce);
-    
-    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight;
-    
+
+    printf("Sending version: %i, services: %llu, nonce: %llu\n",
+           GetProtocolVersion(), (unsigned long long)nLocalServices, (unsigned long long)nLocalNonce);
+
+    vSend << GetProtocolVersion() << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight;
+
     // クマコインプロトコル60007で必要
     vSend << (uint8_t)1; // fRelayTxsフラグ
-    
+
     EndMessage();
   }
  
@@ -135,16 +135,16 @@ class CNode {
         BeginMessage("verack");
         EndMessage();
       }
-      vSend.SetVersion(min(nVersion, PROTOCOL_VERSION));
+      vSend.SetVersion(min(nVersion, GetProtocolVersion()));
       if (nVersion < 209) {
-        this->vRecv.SetVersion(min(nVersion, PROTOCOL_VERSION));
+        this->vRecv.SetVersion(min(nVersion, GetProtocolVersion()));
         GotVersion();
       }
       return false;
     }
-    
+
     if (strCommand == "verack") {
-      this->vRecv.SetVersion(min(nVersion, PROTOCOL_VERSION));
+      this->vRecv.SetVersion(min(nVersion, GetProtocolVersion()));
       GotVersion();
       return false;
     }
@@ -229,6 +229,10 @@ public:
     if (time(NULL) > 1329696000) {
       vSend.SetVersion(209);
       vRecv.SetVersion(209);
+    }
+    if (GetInitStreamVersion() > 0) {
+      vSend.SetVersion(GetInitStreamVersion());
+      vRecv.SetVersion(GetInitStreamVersion());
     }
   }
   bool Run() {

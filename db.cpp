@@ -4,6 +4,9 @@
 using namespace std;
 
 int nMinimumHeight = 3086001;
+int nMinimumVersion = 0;
+int nProtocolVersion = 0;
+int nInitStreamVersion = 0;
 
 void CAddrInfo::Update(bool good) {
   uint32_t now = time(NULL);

@@ -62,6 +62,25 @@ static const unsigned int MAX_SIZE = 0x02000000;
 
 static const int PROTOCOL_VERSION = 60007;
 
+// runtime override for the protocol version advertised in handshakes;
+// some networks disconnect peers below their minimum protocol version
+extern int nProtocolVersion;
+static inline int GetProtocolVersion()
+{
+    return nProtocolVersion ? nProtocolVersion : PROTOCOL_VERSION;
+}
+
+// runtime override for the initial stream version used before version
+// negotiation (default 209). Peercoin-derived wallets initialize their
+// streams at MIN_PROTO_VERSION instead, which makes them serialize the
+// nTime field of CAddress inside the version message itself; matching
+// their stream version here is required to talk to such networks.
+extern int nInitStreamVersion;
+static inline int GetInitStreamVersion()
+{
+    return nInitStreamVersion;
+}
+
 // Used to bypass the rule against non-const reference to temporary
 // where it makes sense with wrappers such as CFlatData or CTxDB
 template<typename T>

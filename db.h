@@ -15,9 +15,15 @@
 #define REQUIRE_VERSION 70001
 
 extern int nMinimumHeight;
+extern int nMinimumVersion;
 static inline int GetRequireHeight(const bool testnet = fTestNet)
 {
     return nMinimumHeight ? nMinimumHeight : (testnet ? 500000 : 350000);
+}
+
+static inline int GetRequireVersion()
+{
+    return nMinimumVersion ? nMinimumVersion : REQUIRE_VERSION;
 }
 
 std::string static inline ToString(const CService &ip) {
@@ -105,7 +111,7 @@ public:
     if (ip.GetPort() != GetDefaultPort()) return false;
     if (!(services & NODE_NETWORK)) return false;
     if (!ip.IsRoutable()) return false;
-    if (clientVersion && clientVersion < REQUIRE_VERSION) return false;
+    if (clientVersion && clientVersion < GetRequireVersion()) return false;
     if (blocks && blocks < GetRequireHeight()) return false;
 
     if (total <= 3 && success * 2 >= total) return true;
